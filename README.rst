@@ -15,7 +15,8 @@ pydanticli
     :target: https://opensource.org/licenses/MIT
     :alt: license: MIT
 
-An `<https://docs.python.org/3/library/argparse.html>`__ built on `pydantic <https://docs.pydantic.dev>`__ for CLI programs.
+An `argparse <https://docs.python.org/3/library/argparse.html>`__ built on `pydantic <https://docs.pydantic.dev>`__ for
+CLI programs.
 
 Tests & linting 🚥
 ===============
