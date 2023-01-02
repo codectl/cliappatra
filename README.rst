@@ -1,12 +1,12 @@
 **********
-pydanticli
+cliappatra
 **********
 
-.. image:: https://github.com/codectl/pydanticli/actions/workflows/ci.yaml/badge.svg
-    :target: https://github.com/codectl/pydanticli/actions/workflows/ci.yaml
+.. image:: https://github.com/codectl/cliappatra/actions/workflows/ci.yaml/badge.svg
+    :target: https://github.com/codectl/cliappatra/actions/workflows/ci.yaml
     :alt: CI
-.. image:: https://codecov.io/gh/codectl/pydanticli/branch/master/graph/badge.svg
-    :target: https://app.codecov.io/gh/codectl/pydanticli/branch/master
+.. image:: https://codecov.io/gh/codectl/cliappatra/branch/master/graph/badge.svg
+    :target: https://app.codecov.io/gh/codectl/cliappatra/branch/master
     :alt: codecov
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
