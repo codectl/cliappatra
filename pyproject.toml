@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pydanticli"
+name = "cliappatra"
 version = "0.1.0"
 description = "A pydantic argparse for CLI programs."
 authors = ["Renato Damas <me@renatodamas.com>"]
@@ -9,7 +9,7 @@ packages = [
     { include = "*", from = "src" }
 ]
 homepage = ""
-repository = "https://github.com/codectl/pydanticli"
+repository = "https://github.com/codectl/cliappatra"
 documentation = ""
 keywords = [
     "pydanticli",
