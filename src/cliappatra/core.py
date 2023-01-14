@@ -1,22 +1,15 @@
 import argparse
+import inspect
+from dataclasses import asdict, is_dataclass
 from typing import Any, Callable, Optional, Sequence, Union
 
 from pydantic import BaseModel
 
-
-class Arg(BaseModel):
-    name: Union[str, Sequence[str]]
-    action: argparse.Action
-    nargs: Union[int, str]
-    const: Optional[str]
-    default: Optional[Any]
-    required: bool
-    help: Optional[str]
-    metavar: Optional[str]
-    dest: Optional[str]
+from cliappatra import utils
+from cliappatra.models import Field, ParamMeta
 
 
-class Cliappatra(argparse.ArgumentParser):
+class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(
             self,
@@ -25,7 +18,6 @@ class Cliappatra(argparse.ArgumentParser):
             version: Optional[str] = None,
             epilog: Optional[str] = None,
             add_help: bool = True,
-            commands=(),
             **kwargs
     ):
         super().__init__(
@@ -37,38 +29,82 @@ class Cliappatra(argparse.ArgumentParser):
         )
 
         add_group = self.add_argument_group
-        self._positionals = add_group("Arguments")
-        self._optionals = add_group("Options")
+        self._arguments = add_group("Arguments")
+        self._options = add_group("Options")
         self._help = add_group("Help")
 
-        print(self._action_groups)
+        # print(self._action_groups)
 
         self.add_help = add_help
         self.version = version
 
-        if self.add_help:
-            self._add_help_opt()
-        if self.version:
-            self._add_version_opt()
+        if add_help:
+            self._help.add_argument(
+                "-h",
+                "--help",
+                action="help",
+                default=argparse.SUPPRESS,
+                help="show this help message and exit",
+            )
 
-    def _add_version_opt(self) -> None:
-        self._help.add_argument(
-            "-v",
-            "--version",
-            action="version",
-            help="show program's version number and exit",
-        )
+        if version:
+            self._help.add_argument(
+                "-v",
+                "--version",
+                action="version",
+                default=argparse.SUPPRESS,
+                help="show program's version number and exit",
+            )
 
-    def _add_help_opt(self) -> None:
-        self._help.add_argument(
-            "-h",
-            "--help",
-            action="help",
-            help="show this help message and exit",
-        )
+    def parse_function(self, parser: Callable[..., Any]):
+        params = utils.get_func_params(parser)
+        for param in params.values():
+            self._parse_field(param)
+
+    def _parse_field(self, param: ParamMeta):
+
+        kwargs = {}
+        if is_dataclass(param.default):
+            kwargs.update(param.default.asdict())
+
+        if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+            group = self._arguments
+            name = param.name
+            if not kwargs.get("metavar"):
+                kwargs["metavar"] = name.upper()
+        else:
+            group = self._options
+            name = f"--{param.name}"
+
+        # required = kwargs.pop("required")
+        if not kwargs.get("action"):
+            kwargs["action"] = self._annotation_action(param.annotation)
+        # env = kwargs.pop("envar")
+
+        return group.add_argument(name, **kwargs)
+
+    @staticmethod
+    def _annotation_action(annotation):
+        if annotation is bool:
+            return argparse.BooleanOptionalAction
+        return argparse.Action
 
 
-def create_app(function: Callable[..., Any]) -> None:
-    app = Cliappatra()
-    app.command()(function)
-    app()
+def create_app(
+        prog: Optional[str] = None,
+        description: Optional[str] = None,
+        epilog: Optional[str] = None,
+        parser: Optional[Callable[..., Any]] = None,
+        **kwargs
+) -> ArgumentParser:
+    app = ArgumentParser(
+        prog=prog,
+        description=description,
+        epilog=epilog,
+        **kwargs
+    )
+
+    if parser is not None:
+        app.parse_function(parser)
+
+    return app
