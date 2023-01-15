@@ -1,7 +1,7 @@
 import inspect
 from typing import Any, Callable, get_type_hints
 
-from cliappatra.models import ParamMeta
+from cliappatra.models import Field, FieldMeta
 
 
 def get_func_params(func: Callable[..., Any]):
@@ -12,10 +12,13 @@ def get_func_params(func: Callable[..., Any]):
         annotation = param.annotation
         if param.name in type_hints:
             annotation = type_hints[param.name]
-        params[param.name] = ParamMeta(
+
+        default = param.default
+        field = default if isinstance(default, Field) else Field(default=default)
+        field.meta = FieldMeta(
             name=param.name,
             kind=param.kind,
-            default=param.default,
             annotation=annotation
         )
+        params[param.name] = field
     return params
