@@ -1,12 +1,10 @@
 import argparse
 import inspect
-from dataclasses import asdict, is_dataclass
-from typing import Any, Callable, Optional, Sequence, Union
-
-from pydantic import BaseModel
+from dataclasses import is_dataclass
+from typing import Any, Callable, Optional
 
 from cliappatra import utils
-from cliappatra.models import Field, ParamMeta
+from cliappatra.models import Field, FieldMeta
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -25,6 +23,7 @@ class ArgumentParser(argparse.ArgumentParser):
             description=description,
             epilog=epilog,
             add_help=False,
+            exit_on_error=True,
             **kwargs
         )
 
@@ -61,24 +60,30 @@ class ArgumentParser(argparse.ArgumentParser):
         for param in params.values():
             self._parse_field(param)
 
-    def _parse_field(self, param: ParamMeta):
+    def _parse_field(self, field: Field):
 
-        kwargs = {}
-        if is_dataclass(param.default):
-            kwargs.update(param.default.asdict())
+        kwargs = field.asdict()
+        meta = kwargs.pop("meta")
 
-        if param.kind == inspect.Parameter.POSITIONAL_ONLY:
+        if "action" not in kwargs:
+            kwargs["action"] = self._annotation_action(meta.annotation)
+
+        if meta.kind == inspect.Parameter.POSITIONAL_ONLY:
             group = self._arguments
-            name = param.name
-            if not kwargs.get("metavar"):
+            name = meta.name
+            required = kwargs.pop("required")
+
+            if "nargs" not in kwargs and not required:
+                kwargs["nargs"] = "?"
+
+            if "metavar" not in kwargs:
                 kwargs["metavar"] = name.upper()
+
         else:
             group = self._options
-            name = f"--{param.name}"
+            name = f"--{meta.name}"
 
         # required = kwargs.pop("required")
-        if not kwargs.get("action"):
-            kwargs["action"] = self._annotation_action(param.annotation)
         # env = kwargs.pop("envar")
 
         return group.add_argument(name, **kwargs)
@@ -86,8 +91,8 @@ class ArgumentParser(argparse.ArgumentParser):
     @staticmethod
     def _annotation_action(annotation):
         if annotation is bool:
-            return argparse.BooleanOptionalAction
-        return argparse.Action
+            return "store_true"
+        return "store"
 
 
 def create_app(
