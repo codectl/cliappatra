@@ -4,7 +4,8 @@ from dataclasses import is_dataclass
 from typing import Any, Callable, Optional
 
 from cliappatra import utils
-from cliappatra.models import Field, FieldMeta
+from cliappatra.models import Field
+from cliappatra.parsers import FieldParser
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -61,38 +62,11 @@ class ArgumentParser(argparse.ArgumentParser):
             self._parse_field(param)
 
     def _parse_field(self, field: Field):
-
-        kwargs = field.asdict()
-        meta = kwargs.pop("meta")
-
-        if "action" not in kwargs:
-            kwargs["action"] = self._annotation_action(meta.annotation)
-
-        if meta.kind == inspect.Parameter.POSITIONAL_ONLY:
-            group = self._arguments
-            name = meta.name
-            required = kwargs.pop("required")
-
-            if "nargs" not in kwargs and not required:
-                kwargs["nargs"] = "?"
-
-            if "metavar" not in kwargs:
-                kwargs["metavar"] = name.upper()
-
+        if field.meta.kind == inspect.Parameter.POSITIONAL_ONLY:
+            parser = self._arguments
         else:
-            group = self._options
-            name = f"--{meta.name}"
-
-        # required = kwargs.pop("required")
-        # env = kwargs.pop("envar")
-
-        return group.add_argument(name, **kwargs)
-
-    @staticmethod
-    def _annotation_action(annotation):
-        if annotation is bool:
-            return "store_true"
-        return "store"
+            parser = self._options
+        FieldParser(parser).parse(field)
 
 
 def create_app(
