@@ -1,13 +1,14 @@
+import argparse
 import inspect
 from typing import Any, Callable, get_type_hints
 
 from cliappatra.models import Field, FieldMeta
 
 
-def get_func_params(func: Callable[..., Any]):
+def get_func_fields(func: Callable[..., Any]):
     signature = inspect.signature(func)
     type_hints = get_type_hints(func)
-    params = {}
+    fields = {}
     for param in signature.parameters.values():
         annotation = param.annotation
         if param.name in type_hints:
@@ -20,5 +21,20 @@ def get_func_params(func: Callable[..., Any]):
             kind=param.kind,
             annotation=annotation
         )
-        params[param.name] = field
-    return params
+        fields[param.name] = field
+    return fields
+
+
+def fields_to_params(
+        namespace: argparse.Namespace,
+        fields: dict[str, Field],
+) -> (list[Any], dict[str, Any]):
+    args = []
+    kwargs = {}
+    kv = vars(namespace)
+    for k, v in kv.items():
+        if fields[k].meta.kind == inspect.Parameter.POSITIONAL_ONLY:
+            args.append(v)
+        else:
+            kwargs[k] = v
+    return args, kwargs
