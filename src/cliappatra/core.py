@@ -1,13 +1,19 @@
 import argparse
+import functools
 import inspect
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from cliappatra import utils
+from cliappatra.actions import SubParsersAction
 from cliappatra.models import Field
 from cliappatra.parsers import FieldParser
 
 
 class ArgumentParser(argparse.ArgumentParser):
+    ACTIONS = "Actions"
+    ARGUMENTS = "Arguments"
+    OPTIONS = "Options"
+    HELP = "Help"
 
     def __init__(
             self,
@@ -16,6 +22,7 @@ class ArgumentParser(argparse.ArgumentParser):
             version: Optional[str] = None,
             epilog: Optional[str] = None,
             add_help: bool = True,
+            callback: Callable[..., Any] = None,
             **kwargs
     ):
         super().__init__(
@@ -28,16 +35,18 @@ class ArgumentParser(argparse.ArgumentParser):
         )
 
         add_group = self.add_argument_group
-        self._subcommands = ()
-        self._arguments = add_group("Arguments")
-        self._options = add_group("Options")
-        self._help = add_group("Help")
-        self._callback = None
-
-        # print(self._action_groups)
+        self._arguments = add_group(ArgumentParser.ARGUMENTS)
+        self._options = add_group(ArgumentParser.OPTIONS)
+        self._help = add_group(ArgumentParser.HELP)
 
         self.add_help = add_help
         self.version = version
+
+        self._parsed: (ArgumentParser, argparse.Namespace) = None
+        if callback is not None:
+            self._fields = None
+            self._callback = callback
+            self.init_parser(callback)
 
         if add_help:
             self._help.add_argument(
@@ -57,37 +66,42 @@ class ArgumentParser(argparse.ArgumentParser):
                 help="show program's version number and exit",
             )
 
-    def _commands(self):
-        if not self._subcommands:
-            # Add Sub-Commands Group
-            # self._subcommands = self.add_subparsers(
-            #     title=ArgumentParser.COMMANDS,
-            #     action=argparse.SubParsersAction,
-            #     required=True,
-            # )
-
-            # Shuffle Group to the Top for Help Message
-            self._action_groups.insert(0, self._action_groups.pop())
-
-        # Return
-        return self._subcommands
+    def init_parser(self, fn: Callable[..., Any]):
+        self._fields = self._add_fields(fn=fn)
+        if hasattr(fn, "subactions"):
+            self.register_subactions(fn.subactions)
 
     def parse_args(self, args=None, namespace=None):
         namespace = super().parse_args(args=args, namespace=namespace)
-        args, kwargs = utils.fields_to_params(namespace=namespace, fields=self._callback.fields)
+        self.invoke_callbacks(namespace)
+
+    def invoke_callbacks(self, namespace):
+        args, kwargs = utils.fields_to_params(namespace=namespace, fields=self._fields)
         self._callback(*args, **kwargs)
+        if self._parsed:
+            parser, subnamespace = self._parsed
+            parser.invoke_callbacks(subnamespace)
 
-    def callback(self, fn: Callable[..., Any]):
-        fn.fields = self._parse_callback(fn=fn)
-        self._callback = fn
+    def register_subactions(self, callbacks: Sequence[Callable[..., Any]]):
+        if not callbacks:
+            return None
 
-    def _parse_callback(self, fn: Callable[..., Any]):
+        subparsers = self.add_subparsers(
+            title=ArgumentParser.ACTIONS,
+            action=SubParsersAction,
+            help="available actions",
+        )
+
+        for callback in callbacks:
+            subparsers.add_parser("", callback=callback)
+
+    def _add_fields(self, fn: Callable[..., Any]):
         fields = utils.get_func_fields(fn)
         for field in fields.values():
-            self._parse_field(field)
+            self._add_field(field)
         return fields
 
-    def _parse_field(self, field: Field):
+    def _add_field(self, field: Field):
         args, kwargs = FieldParser.parse(field)
         group = self._arguments if field.meta.kind == inspect.Parameter.POSITIONAL_ONLY else self._options
         group.add_argument(*args, **kwargs)
@@ -100,14 +114,23 @@ def create_app(
         callback: Optional[Callable[..., Any]] = None,
         **kwargs
 ) -> ArgumentParser:
-    app = ArgumentParser(
+    return ArgumentParser(
         prog=prog,
         description=description,
         epilog=epilog,
+        callback=callback,
         **kwargs
     )
 
-    if callback is not None:
-        app.callback(callback)
 
-    return app
+def subactions(*actions_args):
+    def decorator(fn):
+        fn.subactions = actions_args
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
